@@ -220,6 +220,8 @@ void initDualTimeNewtonKrylovSimulation(int snapshotStart, int maxCPUs, int thre
     if ((cfg.interpolation_order > 1) &&
         ((cfg.unstructured_limiter == UnstructuredLimiter.hvenkat) ||
          (cfg.unstructured_limiter == UnstructuredLimiter.venkat) ||
+         (cfg.unstructured_limiter == UnstructuredLimiter.hvenkat2) ||
+         (cfg.unstructured_limiter == UnstructuredLimiter.venkat2) ||
          (cfg.unstructured_limiter == UnstructuredLimiter.hvenkat_mlp) ||
          (cfg.unstructured_limiter == UnstructuredLimiter.venkat_mlp))) {
         initUSGlimiters();
