@@ -1083,9 +1083,7 @@ public:
                 }
                 phi = fmin(phi, phi_f);
             }
-            number parkMask2 = parkMask * parkMask;
-            number parkMask4 = parkMask2 * parkMask2;
-            "~limFactorname~" = (phi + parkMask4 * (1.0 - phi))*phi_hp;
+            "~limFactorname~" = (phi + parkMask * (1.0 - phi))*phi_hp;
             }
             ";
             return code;
