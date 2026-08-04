@@ -1294,7 +1294,7 @@ public:
 
     version(newton_krylov) {
 
-    void initialize_jacobian(int spatial_order_of_jacobian, double sigma, int iluFill=-1)
+    void initialize_jacobian(int spatial_order_of_jacobian, double sigma, int iluFill = -1, bool include_limiter_dependencies = false)
     {
         /*
           This method initializes the flow Jacobian matrix attached the FluidBlock object.
@@ -1314,7 +1314,7 @@ public:
                 cell.cell_list ~= cell; 
             }
             else {
-                cell.gather_residual_stencil_lists(spatial_order_of_jacobian);
+                cell.gather_residual_stencil_lists(spatial_order_of_jacobian, include_limiter_dependencies);
             }
             nentry += cell.cell_list.length;
         }
@@ -1338,7 +1338,7 @@ public:
                     cell = face.right_cell;
                     ghost_cell = face.left_cell;
                 }
-                ghost_cell.gather_residual_stencil_lists_for_ghost_cells(spatial_order_of_jacobian, cell.cell_cloud);
+                ghost_cell.gather_residual_stencil_lists_for_ghost_cells(spatial_order_of_jacobian, cell.cell_cloud, include_limiter_dependencies);
             }
         }
 
