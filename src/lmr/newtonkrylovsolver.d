@@ -3413,6 +3413,15 @@ void evalResidualWorker(int ftl)
     }
 
     exchange_ghost_cell_boundary_data(SimState.time, gtl, ftl);
+
+    // We don't want to switch between flux calculator application while
+    // doing the Frechet derivative, so we'll only search for shock points
+    // at ftl = 0, which is when the F(U) evaluation is made.
+    //
+    // We need to detect shocks before applyPreReconAction so updated
+    // shock-detector values are immediately copied to ghost cells.
+    if (ftl == 0 && GlobalConfig.do_shock_detect && !GlobalConfig.frozen_shock_detector) { detect_shocks(0, ftl); }
+
     foreach (blk; localFluidBlocks) {
         blk.applyPreReconAction(SimState.time, gtl, ftl);
     }
@@ -3436,11 +3445,6 @@ void evalResidualWorker(int ftl)
             compute_avg_face_vel(blk, gtl);        
         }
     }
-
-    // We don't want to switch between flux calculator application while
-    // doing the Frechet derivative, so we'll only search for shock points
-    // at ftl = 0, which is when the F(U) evaluation is made.
-    if (ftl == 0 && GlobalConfig.do_shock_detect && !GlobalConfig.frozen_shock_detector) { detect_shocks(0, ftl); }
 
     // We need to apply the copy_cell_data BIE at this point to allow propagation of
     // "shocked" cell information (fs.S) to the boundary interface BEFORE the convective
