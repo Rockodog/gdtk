@@ -25,7 +25,7 @@ from gdtk.gas import GasModel, GasState, ThermochemicalReactor
 class NoIgnitionException(Exception):
     pass
 
-def ignition_delay(T, gm, chemUpdate):
+def ignition_delay(T, gm, chemUpdate, igCriteria):
     Q = GasState(gm)
     Q.p = pInit
     Q.T = T
@@ -55,7 +55,7 @@ def sweep_temperatures(gm, chemUpdate, Ts, igCriteria):
 
     for T in Ts:
         try:
-            tIg = ignition_delay(T, gm, chemUpdate)
+            tIg = ignition_delay(T, gm, chemUpdate, igCriteria)
             igTemps.append(T)
             igDelays.append(tIg)
         except(NoIgnitionException) as e:
