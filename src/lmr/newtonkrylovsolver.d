@@ -11,6 +11,7 @@
 module lmr.newtonkrylovsolver;
 
 import core.memory : GC;
+import core.time : MonoTime;
 import core.stdc.stdlib : exit;
 import core.stdc.string : memcpy;
 import std.algorithm : min;
@@ -481,6 +482,23 @@ private:
  */
 
 static int fnCount = 0;
+enum WallTimeIndex {
+    linearSolve,
+    preconditionerSetup,
+    preconditionerApply,
+    physicalityCheck,
+    lineSearch,
+    frechetDerivative,
+    krylovOperations,
+    perturbationSize,
+    count
+}
+static long[WallTimeIndex.count] routineWallTimeTicks = 0;
+
+long elapsedTicks(long start)
+{
+    return MonoTime.currTime().ticks - start;
+}
 immutable double minScaleFactor = 1.0;
 immutable string refResidFname = "config/reference-residuals.saved";
 
@@ -641,8 +659,6 @@ struct GMRESInfo {
     double initResidual = 1.0;
     double finalResidual = 1.0;
     int iterationCount;
-    double linearSolveWallTime = 0.0;
-    double pcWallTime = 0.0 ; // initialize to 0.0 to handle cases where FGMRES never invokes the preconditioner
 };
 GMRESInfo gmresInfo;
 
@@ -1148,7 +1164,7 @@ void performNewtonKrylovUpdates(int snapshotStart, double startCFL, int maxCPUs,
         foreach (ref residual; referenceResiduals) residual += to!number(1.0);
 
         if (nkCfg.numberOfStepsForSettingReferenceResiduals == 0) {
-            writeDiagnostics(0, 0.0, cfl, 0.0, 0.0, 0.0, 1.0, 0, residualsUpToDate);
+            writeDiagnostics(0, 0.0, cfl, 0.0, 1.0, 0, residualsUpToDate);
             referenceResidualsAreSet = true;
             if (GlobalConfig.is_master_task) {
                 writeln("*************************************************************************");
@@ -1178,8 +1194,6 @@ void performNewtonKrylovUpdates(int snapshotStart, double startCFL, int maxCPUs,
     // Start timer right at beginning of stepping.
     auto wallClockStart = Clock.currTime();
     double wallClockElapsed;
-    double physicalityCheckWallTime;
-    double lineSearchWallTime;
     int numberBadSteps = 0;
     bool startOfNewPhase = false;
     double omega = 1.0;
@@ -1194,6 +1208,7 @@ void performNewtonKrylovUpdates(int snapshotStart, double startCFL, int maxCPUs,
     }
 
     foreach (step; startStep .. nkCfg.maxNewtonSteps+1) {
+        routineWallTimeTicks[] = 0;
 
         /*---
          * 0. Check for any special actions based on step to perform at START of step
@@ -1294,16 +1309,16 @@ void performNewtonKrylovUpdates(int snapshotStart, double startCFL, int maxCPUs,
         }
 
         /* 1a. perform a physicality check if required */
-        auto physicalityCheckWallTimeStart = Clock.currTime();
+        auto physicalityCheckWallTimeStart = MonoTime.currTime().ticks;
         omega = nkCfg.usePhysicalityCheck ? determineRelaxationFactor() : 1.0;
-        physicalityCheckWallTime = to!double((Clock.currTime() - physicalityCheckWallTimeStart).total!"msecs"())/1000.0;
+        routineWallTimeTicks[WallTimeIndex.physicalityCheck] = elapsedTicks(physicalityCheckWallTimeStart);
 
         /* 1b. do a line search if required */
-        auto lineSearchWallTimeStart = Clock.currTime();
+        auto lineSearchWallTimeStart = MonoTime.currTime().ticks;
         if ( (omega > nkCfg.minRelaxationFactorForUpdate) && nkCfg.useLineSearch ) {
             omega = applyLineSearch(omega, currentPhase, stepsIntoCurrentPhase);
         }
-        lineSearchWallTime = to!double((Clock.currTime() - lineSearchWallTimeStart).total!"msecs"())/1000.0;
+        routineWallTimeTicks[WallTimeIndex.lineSearch] = elapsedTicks(lineSearchWallTimeStart);
 
         /* 1c. check if we achived the allowable linear solver tolerance */
         bool failedToAchieveAllowableLinearSolverTolerance =
@@ -1443,7 +1458,7 @@ void performNewtonKrylovUpdates(int snapshotStart, double startCFL, int maxCPUs,
          *---
          */
         if (((step % nkCfg.stepsBetweenDiagnostics) == 0) || (finalStep && nkCfg.writeDiagnosticsOnLastStep)) {
-            writeDiagnostics(step, dt, cfl, wallClockElapsed, physicalityCheckWallTime, lineSearchWallTime, omega, currentPhase, residualsUpToDate);
+            writeDiagnostics(step, dt, cfl, wallClockElapsed, omega, currentPhase, residualsUpToDate);
         }
 
         if (((step % nkCfg.stepsBetweenSnapshots) == 0) || (finalStep && nkCfg.writeSnapshotOnLastStep)) {
@@ -1914,11 +1929,11 @@ void solveNewtonStep(bool updatePreconditionerThisStep,
 
     determineScaleFactors(rowScale, invColScale, nkCfg.useScaling);
 
-    auto pcWallTimeStart = Clock.currTime();
+    auto pcWallTimeStart = MonoTime.currTime().ticks;
     if (nkCfg.usePreconditioner && updatePreconditionerThisStep) {
         computePreconditioner();
     }
-    gmresInfo.pcWallTime = to!double((Clock.currTime() - pcWallTimeStart).total!"msecs"())/1000.0;
+    routineWallTimeTicks[WallTimeIndex.preconditionerSetup] = elapsedTicks(pcWallTimeStart);
 
     if (activePhase.useResidualSmoothing) {
         evalResidualSmoothing();
@@ -1927,7 +1942,7 @@ void solveNewtonStep(bool updatePreconditionerThisStep,
 
     setInitialGuess();
 
-    auto linearSolveWallTimeStart = Clock.currTime();
+    auto linearSolveWallTimeStart = MonoTime.currTime().ticks;
     /*---
      * 1. Outer loop of restarted GMRES
      *---
@@ -2056,7 +2071,7 @@ void solveNewtonStep(bool updatePreconditionerThisStep,
     gmresInfo.initResidual = beta0.re;
     gmresInfo.finalResidual = linearSolveResidual.re;
     gmresInfo.iterationCount = iterationCount;
-    gmresInfo.linearSolveWallTime = to!double((Clock.currTime() - linearSolveWallTimeStart).total!"msecs"())/1000.0;
+    routineWallTimeTicks[WallTimeIndex.linearSolve] = elapsedTicks(linearSolveWallTimeStart);
 }
 
 
@@ -2094,7 +2109,7 @@ void solveNewtonStepFGMRES(size_t currentPhase, int stepsIntoCurrentPhase)
 
     setInitialGuess();
 
-    auto linearSolveWallTimeStart = Clock.currTime();
+    auto linearSolveWallTimeStart = MonoTime.currTime().ticks;
     /*---
      * 1. Outer loop of restarted GMRES
      *---
@@ -2189,7 +2204,7 @@ void solveNewtonStepFGMRES(size_t currentPhase, int stepsIntoCurrentPhase)
     gmresInfo.initResidual = beta0.re;
     gmresInfo.finalResidual = linearSolveResidual.re;
     gmresInfo.iterationCount = iterationCount;
-    gmresInfo.linearSolveWallTime = to!double((Clock.currTime() - linearSolveWallTimeStart).total!"msecs"())/1000.0;
+    routineWallTimeTicks[WallTimeIndex.linearSolve] = elapsedTicks(linearSolveWallTimeStart);
 }
 
 /**
@@ -2788,6 +2803,8 @@ bool performIterations(int maxIterations, double targetResidual,
         // 3. Jacobian-vector product
         evalAugmentedJacobianVectorProduct(currentPhase, stepsIntoCurrentPhase);
 
+        auto krylovOperationsWallTimeStart = MonoTime.currTime().ticks;
+
         // apply row scaling to w
         foreach (blk; parallel(localFluidBlocks,1)) {
             scaleVector(rowScale, blk.w, nConserved, blk.cells.length*nConserved);
@@ -2869,6 +2886,7 @@ bool performIterations(int maxIterations, double targetResidual,
 
         // Get residual
         resid = fabs(g1[j+1]);
+        routineWallTimeTicks[WallTimeIndex.krylovOperations] += elapsedTicks(krylovOperationsWallTimeStart);
         if (resid <= targetResidual) {
             isConverged = true;
             break;
@@ -2931,6 +2949,8 @@ bool performFGMRESIterations(int maxIterations, int maxPreconditioningIterations
 
         // 3. Jacobian-vector product
         evalAugmentedJacobianVectorProduct(currentPhase, stepsIntoCurrentPhase);
+
+        auto krylovOperationsWallTimeStart = MonoTime.currTime().ticks;
 
         // apply row scaling to w
         foreach (blk; parallel(localFluidBlocks,1)) {
@@ -3005,6 +3025,7 @@ bool performFGMRESIterations(int maxIterations, int maxPreconditioningIterations
 
         // Get residual
         resid = fabs(g1[j+1]);
+        routineWallTimeTicks[WallTimeIndex.krylovOperations] += elapsedTicks(krylovOperationsWallTimeStart);
         if (resid <= targetResidual) {
             isConverged = true;
             break;
@@ -3050,6 +3071,8 @@ bool inner_gmres(int maxIterations, double targetResidual, size_t currentPhase, 
 
         // 2. Jacobian-vector product
         evalAugmentedJacobianVectorProduct(currentPhase, stepsIntoCurrentPhase, true);
+
+        auto krylovOperationsWallTimeStart = MonoTime.currTime().ticks;
 
         // 4. The remainder of the algorithm looks a lot like any standard
         // GMRES implementation (for example, see smla.d)
@@ -3121,6 +3144,7 @@ bool inner_gmres(int maxIterations, double targetResidual, size_t currentPhase, 
 
         // Get residual
         double resid = fabs(g1[j+1]);
+        routineWallTimeTicks[WallTimeIndex.krylovOperations] += elapsedTicks(krylovOperationsWallTimeStart);
         if (resid <= targetResidual) {
             isConverged = true;
             break;
@@ -3156,6 +3180,7 @@ bool inner_gmres(int maxIterations, double targetResidual, size_t currentPhase, 
  */
 void applyPreconditioning()
 {
+    auto preconditionerApplyWallTimeStart = MonoTime.currTime().ticks;
     auto nConserved = GlobalConfig.cqi.n;
 
     final switch (nkCfg.preconditioner) {
@@ -3178,6 +3203,9 @@ void applyPreconditioning()
         }
         break;
     } // end switch
+
+    routineWallTimeTicks[WallTimeIndex.preconditionerApply] +=
+        elapsedTicks(preconditionerApplyWallTimeStart);
 }
 
 
@@ -3231,6 +3259,8 @@ void removePreconditioning()
  */
 double computePerturbationSize()
 {
+    auto perturbationSizeWallTimeStart = MonoTime.currTime().ticks;
+
     // perturbation constant, Knoll and McHugh suggest a value on the order of the square
     // root of machine roundoff, however, we have observed that this value can be somewhat
     // problem dependent.
@@ -3272,6 +3302,7 @@ double computePerturbationSize()
     // compute perturbation parameter via Eq. 11
     double sigma = eps_sum/(nvars*z_L2.re);
 
+    routineWallTimeTicks[WallTimeIndex.perturbationSize] += elapsedTicks(perturbationSizeWallTimeStart);
     return sigma;
 }
 
@@ -3340,6 +3371,7 @@ void evalAugmentedJacobianVectorProduct(size_t currentPhase, int stepsIntoCurren
  */
 void evalJacobianVectorProduct(double sigma, size_t currentPhase, int stepsIntoCurrentPhase, bool for_preconditioning=false)
 {
+    auto frechetDerivativeWallTimeStart = MonoTime.currTime().ticks;
     version (complex_numbers) {
         if (nkCfg.useRealValuedFrechetDerivative) {
             evalRealMatVecProd(sigma, for_preconditioning, currentPhase, stepsIntoCurrentPhase);
@@ -3350,6 +3382,7 @@ void evalJacobianVectorProduct(double sigma, size_t currentPhase, int stepsIntoC
     else {
         evalRealMatVecProd(sigma, for_preconditioning, currentPhase, stepsIntoCurrentPhase);
     }
+    routineWallTimeTicks[WallTimeIndex.frechetDerivative] += elapsedTicks(frechetDerivativeWallTimeStart);
 }
 
 void evalResidual(int ftl, size_t currentPhase, int stepsIntoCurrentPhase)
@@ -4163,7 +4196,7 @@ void initialiseDiagnosticsFile()
     foreach (ivar; 0 .. cfg.cqi.n) {
         header ~= format("%s-abs %s-rel ", cfg.cqi.names[ivar], cfg.cqi.names[ivar]);
     }
-    header ~= "linear-solve-wall-time preconditioner-setup-wall-time physicality-check-wall-time line-search-wall-time";
+    header ~= "linear-solve-wall-time preconditioner-setup-wall-time preconditioner-apply-wall-time physicality-check-wall-time line-search-wall-time frechet-derivative-wall-time krylov-operations-wall-time perturbation-size-wall-time";
     diagnostics.writeln(header);
     diagnostics.close();
 }
@@ -4177,7 +4210,7 @@ void initialiseDiagnosticsFile()
  * History:
  *   2024-03-26 added some additional entries and reordered contents
  */
-void writeDiagnostics(int step, double dt, double cfl, double wallClockElapsed, double physicalityCheckWallTime, double lineSearchWallTime, double omega, int phase, ref bool residualsUpToDate)
+void writeDiagnostics(int step, double dt, double cfl, double wallClockElapsed, double omega, int phase, ref bool residualsUpToDate)
 {
     alias cfg = GlobalConfig;
 
@@ -4185,6 +4218,15 @@ void writeDiagnostics(int step, double dt, double cfl, double wallClockElapsed, 
     if (!residualsUpToDate) {
         computeMaxResiduals(currentResiduals);
         residualsUpToDate = true;
+    }
+
+    double[WallTimeIndex.count] routineWallTimes;
+    foreach (i, ticks; routineWallTimeTicks) {
+        routineWallTimes[i] = cast(double) ticks / cast(double) MonoTime.ticksPerSecond;
+    }
+
+    version(mpi_parallel) {
+        MPI_Allreduce(MPI_IN_PLACE, routineWallTimes.ptr, cast(int) routineWallTimes.length, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     }
 
     // We don't need to proceed on ranks other than master.
@@ -4198,8 +4240,15 @@ void writeDiagnostics(int step, double dt, double cfl, double wallClockElapsed, 
     foreach (ivar; 0 .. cfg.cqi.n) {
         diagnostics.writef("%20.16e %20.16e ", currentResiduals[ivar].re, currentResiduals[ivar].re/referenceResiduals[ivar].re);
     }
-    diagnostics.writef("%.8f %.8f %.8f %.8f",
-                       gmresInfo.linearSolveWallTime, gmresInfo.pcWallTime, physicalityCheckWallTime, lineSearchWallTime);
+    diagnostics.writef("%.8f %.8f %.8f %.8f %.8f %.8f %.8f %.8f",
+                       routineWallTimes[WallTimeIndex.linearSolve],
+                       routineWallTimes[WallTimeIndex.preconditionerSetup],
+                       routineWallTimes[WallTimeIndex.preconditionerApply],
+                       routineWallTimes[WallTimeIndex.physicalityCheck],
+                       routineWallTimes[WallTimeIndex.lineSearch],
+                       routineWallTimes[WallTimeIndex.frechetDerivative],
+                       routineWallTimes[WallTimeIndex.krylovOperations],
+                       routineWallTimes[WallTimeIndex.perturbationSize]);
     diagnostics.writef("\n");
     diagnostics.close();
 }
