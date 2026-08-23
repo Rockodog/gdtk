@@ -398,6 +398,7 @@ function write2TGas(f, species, db, optsTable)
    end
    f:write("}\n\n")
    f:write("physical_model = 'two-temperature-gas'\n")
+   f:write("energyModes = { 'trans-rotational', 'vibro-electronic' }\n")
    f:write("db = {}\n")
    for _,sp in ipairs(species) do
       f:write(string.format("db['%s'] = {}\n", sp))
