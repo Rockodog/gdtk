@@ -1,5 +1,5 @@
 #!/bin/sh
-"exec" "$HOME/gdtkinst/lib/.crbl/bin/python3" "-B" "$0" "$@"
+"exec" "$DGD/lib/.crbl/bin/python3" "-B" "$0" "$@"
 
 from os.path import dirname, join
 from crbl import main
