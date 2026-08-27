@@ -1,5 +1,5 @@
 #!/bin/sh
-"exec" "$HOME/gdtkinst/lib/.nesl/bin/python3" "-B" "$0" "$@"
+"exec" "$DGD/lib/.nesl/bin/python3" "-B" "$0" "$@"
 
 """
 A script that builds on the NESL program to 
@@ -206,10 +206,10 @@ def build_result(p_or_rho_type) -> None:
         writer = csv.writer(f)
 
         if p_or_rho_type == 'p':
-            writer.writerow(["case", " T_inf (K)", " p_inf (Pa)", " u_inf (m/s)", " standoff (m)", " q_c (W/m^2)", " q_d (W/m^2)", " R_s (m)"])
+            writer.writerow(["case", " T_inf (K)", " p_inf (Pa)", " u_inf (m/s)", " standoff (m)", " q_c (W/m^2)", " q_d (W/m^2)", " p (Pa)", " R_s (m)"])
 
         else:
-            writer.writerow(["case", " T_inf (K)", " rho_inf (kg/m^3)", " u_inf (m/s)", " standoff (m)", " q_c (W/m^2)", " q_d (W/m^2)", " R_s (m)"])
+            writer.writerow(["case", " T_inf (K)", " rho_inf (kg/m^3)", " u_inf (m/s)", " standoff (m)", " q_c (W/m^2)", " q_d (W/m^2)", " p (Pa)", " R_s (m)"])
 
         for folder in sorted(root.glob("case*")):
             try:
@@ -223,15 +223,15 @@ def build_result(p_or_rho_type) -> None:
                 data = np.ravel(data)
 
                 if p_or_rho_type == 'p':
-                    row = [cfg["T_INF"], cfg["P_INF"], cfg["U_INF"], data[0], data[1], data[2], data[3]]
+                    row = [cfg["T_INF"], cfg["P_INF"], cfg["U_INF"], data[0], data[1], data[2], data[3], data[4]]
 
                 else:
-                    row = [cfg["T_INF"], cfg["RHO_INF"], cfg["U_INF"], data[0], data[1], data[2], data[3]]
+                    row = [cfg["T_INF"], cfg["RHO_INF"], cfg["U_INF"], data[0], data[1], data[2], data[3], data[4]]
 
                 writer.writerow([folder.name[4:]] + [f"{value:.18e}" for value in row])
 
             except Exception:
-                writer.writerow([folder.name[4:], np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])
+                writer.writerow([folder.name[4:], np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])
 
 def main() -> None:
     """Initialises processes and sets up condition building."""

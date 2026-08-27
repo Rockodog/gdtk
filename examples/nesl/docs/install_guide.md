@@ -6,7 +6,7 @@ Version 1.0.0.
 
 ---
 
-The user must have have Python3 headers available in order to build `nesl` and `ncb`. On Ubuntu, this can be done by running the following command,
+The user must have Python3 headers available in order to build `nesl` and `ncb`. On Ubuntu, this can be done by running the following command,
 
 ```
 sudo apt update && sudo apt install python3-dev
