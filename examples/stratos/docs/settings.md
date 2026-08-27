@@ -8,15 +8,13 @@ Version 1.0.0.
 
 ## Abstract
 
-This document lists every argument recognised by `stratos`, the post-shock
-relaxation solver, and the returned data.
+This document lists every argument recognised by `stratos`, the post-shock relaxation solver, and the returned data.
 
 ---
 
 ## Usage
 
-Stratos has no command line interface. It is a single class, imported into a
-job script.
+Stratos has no command line interface. It is a single class, imported into a job script.
 
 ```python
 from stratos import Stratos
@@ -29,24 +27,17 @@ columns = st.normal()
 
 A run has three parts.
 
-- Construct a `Stratos` object from the gas-models, domain, and pre-shock
-  freestream.
-- Call one solution method, `normal()`, `oblique()` or `shock_angle()`, to
-  march along the streamline.
-- Use the returned dictionary. Nothing is written to disk and nothing is
-  plotted; every method hands back a dictionary of equal-length numpy arrays
-  for the script to do with as it likes.
+- Construct a `Stratos` object from the gas-models, domain, and pre-shock freestream.
+- Call one solution method, `normal()`, `oblique()` or `shock_angle()`, to march along the streamline.
+- Use the returned dictionary. Nothing is written to disk and nothing is plotted; every method hands back a dictionary of equal-length numpy arrays for the script to do with as it likes.
 
-One object can be used for as many runs as needed. The freestream is fixed at
-construction, so a sweep over shock angles is a loop over the method, not over
-the constructor.
+One object can be used for as many runs as needed. The freestream is fixed at construction, so a sweep over shock angles is a loop over the method, not over the constructor.
 
 ---
 
 ## Constructor arguments
 
-The arguments are positional, in this order, and none of the first eight has a
-default.
+The arguments are positional, in this order, and none of the first eight has a default.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -74,8 +65,7 @@ If both are given, `p1` is used. If neither is, the construction fails.
 
 ### `normal()`
 
-Applies the normal-shock jump conditions to the freestream and marches from
-the immediate post-shock state to `x_end`. Returns the column dictionary.
+Applies the normal-shock jump conditions to the freestream and marches from the immediate post-shock state to `x_end`. Returns the column dictionary.
 
 ```python
 columns = st.normal()
@@ -83,10 +73,7 @@ columns = st.normal()
 
 ### `oblique(theta)`
 
-Solves the shock over a wedge of half-angle `theta`. The shock angle from the
-frozen relation is only a starting guess; a secant iteration adjusts it until
-the flow angle at the end of the domain matches the wedge. Returns a tuple of
-the column dictionary and the converged shock angle, in radians.
+Solves the shock over a wedge of half-angle `theta`. The shock angle from the frozen relation is only a starting guess; a secant iteration adjusts it until the flow angle at the end of the domain matches the wedge. Returns a tuple of the column dictionary and the converged shock angle, in radians.
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -102,22 +89,17 @@ columns, beta = st.oblique(np.deg2rad(15.0), verbose=False)
 
 ### `shock_angle(beta)`
 
-Marches the streamline behind a shock of known angle `beta`, in radians. This
-is the method for tracing a shock whose shape is already known. Returns the
-column dictionary.
+Marches the streamline behind a shock of known angle `beta`, in radians. This is the method for tracing a shock whose shape is already known. Returns the column dictionary.
 
 ```python
 columns = st.shock_angle(beta)
 ```
 
-The tangential velocity is preserved across the shock and the normal
-component marched, so this and `oblique()` share their post-processing and
-return the same columns, less `x_p`.
+The tangential velocity is preserved across the shock and the normal component marched, so this and `oblique()` share their post-processing and return the same columns, less `x_p`.
 
 ### `interpolate_to_length(no_cells, target_length, columns, reference)`
 
-Interpolates a result onto an evenly spaced grid. It can be used to re-grid a
-result afterwards, for example onto residence time rather than distance.
+Interpolates a result onto an evenly spaced grid. It can be used to re-grid a result afterwards, for example onto residence time rather than distance.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -158,9 +140,7 @@ On a one-temperature gas-model the two vibro-electronic columns are absent.
 
 ### From `oblique()` and `shock_angle()`
 
-Both carry every column above, except that `x` is removed in favour of the
-shock-aligned and Cartesian coordinates below, and `u` is redefined as the
-velocity magnitude.
+Both carry every column above, except that `x` is removed in favour of the shock-aligned and Cartesian coordinates below, and `u` is redefined as the velocity magnitude.
 
 | Key | Units | Description |
 | --- | --- | --- |
