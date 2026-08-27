@@ -1,5 +1,5 @@
 #!/bin/sh
-"exec" "$HOME/gdtkinst/lib/.nesl/bin/python3" "-B" "$0" "$@"
+"exec" "$DGD/lib/.nesl/bin/python3" "-B" "$0" "$@"
 
 """
 A program that simulates the stagnation-line of blunt 
