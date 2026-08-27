@@ -6,7 +6,7 @@ Version 1.0.0.
 
 ---
 
-Additionally, the following paths are used in the `makefile`, if yours are different, please edit the `makefile` accordingly. It is assumed that the user has already appended the `.bashrc` file according to the instructions in the `gdtk` installation guide.
+The following paths are used in the `makefile`, if yours are different, please edit the `makefile` accordingly. It is assumed that the user has already appended the `.bashrc` file according to the instructions in the `gdtk` installation guide.
 
 ```
 INSTALL_DIR ?= $(DGD)
